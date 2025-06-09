@@ -7,7 +7,8 @@
     body { font-family: sans-serif; text-align: center; padding: 20px; }
     .correct { background-color: lightgreen; transition: background-color 0.5s; }
     .incorrect { background-color: lightcoral; transition: background-color 0.5s; }
-    input, select, button { font-size: 18px; margin: 10px; }
+    input, select, button { font-size: 18px; margin: 5px; }
+    li { margin: 6px 0; }
   </style>
 </head>
 <body>
@@ -17,6 +18,7 @@
     <button onclick="switchMode('play')">Play Mode</button>
   </div>
 
+  <!-- Setup Mode -->
   <div id="setup" style="display:none;">
     <h2>Setup Mode</h2>
     <input id="listName" placeholder="Word List Name">
@@ -28,9 +30,11 @@
     <button onclick="stopRecording()">⏹ Stop</button>
     <button onclick="saveWord()">Save Word</button>
 
-    <ul id="wordPreview"></ul>
+    <h3>Words in List: <span id="currentListName"></span></h3>
+    <ul id="wordPreview" style="list-style: none; padding: 0;" ondragover="event.preventDefault()" ondrop="handleDrop(event)"></ul>
   </div>
 
+  <!-- Play Mode -->
   <div id="play" style="display:none;">
     <h2>Play Mode</h2>
     <select id="playListSelect"></select><br>
@@ -42,7 +46,7 @@
   <script>
     let currentAudioBlob = null;
     let mediaRecorder, currentWord, currentList = [];
-    let gameInterval = null;
+    let dragIndex = null;
 
     function switchMode(mode) {
       document.getElementById('setup').style.display = mode === 'setup' ? 'block' : 'none';
@@ -73,12 +77,77 @@
       const key = document.getElementById('wordListSelect').value;
       const list = JSON.parse(localStorage.getItem(key) || '[]');
       const ul = document.getElementById('wordPreview');
+      document.getElementById('currentListName').textContent = key.slice(5);
       ul.innerHTML = '';
-      list.forEach(w => {
+
+      list.forEach((entry, index) => {
         const li = document.createElement('li');
-        li.textContent = w.word;
+        li.textContent = entry.word + ' ';
+        li.draggable = true;
+        li.ondragstart = () => dragIndex = index;
+        li.dataset.index = index;
+
+        const playBtn = document.createElement('button');
+        playBtn.textContent = '🎧';
+        playBtn.onclick = () => {
+          const audio = new Audio(entry.audio);
+          audio.play();
+        };
+
+        const delBtn = document.createElement('button');
+        delBtn.textContent = '❌';
+        delBtn.onclick = () => {
+          list.splice(index, 1);
+          localStorage.setItem(key, JSON.stringify(list));
+          updateWordListPreview();
+        };
+
+        const moveBtn = document.createElement('button');
+        moveBtn.textContent = '📤';
+        moveBtn.onclick = () => moveWordToAnotherList(index);
+
+        li.appendChild(playBtn);
+        li.appendChild(delBtn);
+        li.appendChild(moveBtn);
         ul.appendChild(li);
       });
+    }
+
+    function handleDrop(event) {
+      const key = document.getElementById('wordListSelect').value;
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      const dropIndex = [...event.currentTarget.children].indexOf(event.target.closest('li'));
+      if (dragIndex === null || dropIndex < 0 || dragIndex === dropIndex) return;
+
+      const [movedItem] = list.splice(dragIndex, 1);
+      list.splice(dropIndex, 0, movedItem);
+      localStorage.setItem(key, JSON.stringify(list));
+      dragIndex = null;
+      updateWordListPreview();
+    }
+
+    function moveWordToAnotherList(index) {
+      const fromKey = document.getElementById('wordListSelect').value;
+      const fromList = JSON.parse(localStorage.getItem(fromKey) || '[]');
+      const wordEntry = fromList[index];
+
+      const otherLists = Object.keys(localStorage)
+        .filter(k => k.startsWith('list_') && k !== fromKey);
+
+      const target = prompt("Move to which list?\n" + otherLists.map(k => k.slice(5)).join('\n'));
+      if (!target) return;
+
+      const toKey = 'list_' + target.trim();
+      if (!localStorage.getItem(toKey)) return alert("That list doesn't exist.");
+
+      fromList.splice(index, 1);
+      localStorage.setItem(fromKey, JSON.stringify(fromList));
+
+      const toList = JSON.parse(localStorage.getItem(toKey));
+      toList.push(wordEntry);
+      localStorage.setItem(toKey, JSON.stringify(toList));
+
+      updateWordListPreview();
     }
 
     function startRecording() {
