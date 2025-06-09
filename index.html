@@ -162,10 +162,10 @@ function startRecording() {
     const chunks = [];
     mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
     mediaRecorder.ondataavailable = e => chunks.push(e.data);
-    mediaRecorder.onstop = () => {
-      currentAudioBlob = new Blob(chunks, { type: 'audio/webm' });
-      stopRecordIndicator();
-    };
+mediaRecorder.onstop = () => {
+  currentAudioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+  stopRecordIndicator();
+};
     mediaRecorder.start();
     startRecordIndicator();
     console.log("Recording started");
