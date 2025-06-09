@@ -160,10 +160,10 @@
 function startRecording() {
   navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
     const chunks = [];
-    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
     mediaRecorder.ondataavailable = e => chunks.push(e.data);
     mediaRecorder.onstop = () => {
-      currentAudioBlob = new Blob(chunks);
+      currentAudioBlob = new Blob(chunks, { type: 'audio/webm' });
       stopRecordIndicator();
     };
     mediaRecorder.start();
@@ -200,22 +200,26 @@ function stopRecordIndicator() {
   document.getElementById("recordIndicator").style.display = "none";
 }
 
-    function saveWord() {
-      const word = document.getElementById('wordInput').value.trim();
-      const listKey = document.getElementById('wordListSelect').value;
-      if (!word || !currentAudioBlob) return alert("Missing word or audio");
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        const audioData = reader.result;
-        const list = JSON.parse(localStorage.getItem(listKey) || '[]');
-        list.push({ word, audio: audioData });
-        localStorage.setItem(listKey, JSON.stringify(list));
-        updateWordListPreview();
-        currentAudioBlob = null;
-        document.getElementById('wordInput').value = '';
-      };
-      reader.readAsDataURL(currentAudioBlob);
+function saveWord() {
+  const word = document.getElementById('wordInput').value.trim();
+  const listKey = document.getElementById('wordListSelect').value;
+  if (!word || !currentAudioBlob) return alert("Missing word or audio");
+  const reader = new FileReader();
+  reader.onloadend = () => {
+    const audioData = reader.result;
+    if (!audioData.startsWith("data:audio/webm")) {
+      alert("Audio format unsupported");
+      return;
     }
+    const list = JSON.parse(localStorage.getItem(listKey) || '[]');
+    list.push({ word, audio: audioData });
+    localStorage.setItem(listKey, JSON.stringify(list));
+    updateWordListPreview();
+    currentAudioBlob = null;
+    document.getElementById('wordInput').value = '';
+  };
+  reader.readAsDataURL(currentAudioBlob);
+}
 
     function populatePlayLists() {
       const select = document.getElementById('playListSelect');
