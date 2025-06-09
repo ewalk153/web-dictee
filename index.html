@@ -30,6 +30,11 @@
     <button onclick="stopRecording()">⏹ Stop</button>
     <button onclick="saveWord()">Save Word</button>
 
+    <div id="recordIndicator" style="display: none; margin-top: 10px;">
+      <span id="recordDot" style="font-size: 24px; color: red;">●</span>
+      <span id="recordTime">0.0</span> sec
+    </div>
+
     <h3>Words in List: <span id="currentListName"></span></h3>
     <ul id="wordPreview" style="list-style: none; padding: 0;" ondragover="event.preventDefault()" ondrop="handleDrop(event)"></ul>
   </div>
@@ -44,6 +49,8 @@
   </div>
 
   <script>
+    let recordTimer = null;
+    let recordStartTime = null;
     let currentAudioBlob = null;
     let mediaRecorder, currentWord, currentList = [];
     let dragIndex = null;
@@ -150,21 +157,48 @@
       updateWordListPreview();
     }
 
-    function startRecording() {
-      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-        mediaRecorder = new MediaRecorder(stream);
-        const chunks = [];
-        mediaRecorder.ondataavailable = e => chunks.push(e.data);
-        mediaRecorder.onstop = () => {
-          currentAudioBlob = new Blob(chunks);
-        };
-        mediaRecorder.start();
-      });
-    }
+function startRecording() {
+  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+    const chunks = [];
+    mediaRecorder = new MediaRecorder(stream);
+    mediaRecorder.ondataavailable = e => chunks.push(e.data);
+    mediaRecorder.onstop = () => {
+      currentAudioBlob = new Blob(chunks);
+      stopRecordIndicator();
+    };
+    mediaRecorder.start();
+    startRecordIndicator();
+    console.log("Recording started");
+  }).catch(err => {
+    alert("Could not access microphone: " + err.message);
+  });
+}
 
-    function stopRecording() {
-      if (mediaRecorder) mediaRecorder.stop();
-    }
+function stopRecording() {
+  if (mediaRecorder && mediaRecorder.state === "recording") {
+    mediaRecorder.stop();
+    console.log("Recording stopped");
+  } else {
+    alert("Not currently recording.");
+  }
+}
+
+    function startRecordIndicator() {
+  document.getElementById("recordIndicator").style.display = "inline-block";
+  recordStartTime = Date.now();
+  recordTimer = setInterval(() => {
+    const elapsed = ((Date.now() - recordStartTime) / 1000).toFixed(1);
+    document.getElementById("recordTime").textContent = elapsed;
+    const dot = document.getElementById("recordDot");
+    dot.style.visibility = dot.style.visibility === 'hidden' ? 'visible' : 'hidden';
+  }, 500);
+}
+
+function stopRecordIndicator() {
+  clearInterval(recordTimer);
+  recordTimer = null;
+  document.getElementById("recordIndicator").style.display = "none";
+}
 
     function saveWord() {
       const word = document.getElementById('wordInput').value.trim();
