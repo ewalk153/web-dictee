@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Dictation Practice</title>
+  <style>
+    body { font-family: sans-serif; text-align: center; padding: 20px; }
+    .correct { background-color: lightgreen; transition: background-color 0.5s; }
+    .incorrect { background-color: lightcoral; transition: background-color 0.5s; }
+    input, select, button { font-size: 18px; margin: 10px; }
+  </style>
+</head>
+<body>
+  <h1>Dictation Practice</h1>
+  <div>
+    <button onclick="switchMode('setup')">Setup Mode</button>
+    <button onclick="switchMode('play')">Play Mode</button>
+  </div>
+
+  <div id="setup" style="display:none;">
+    <h2>Setup Mode</h2>
+    <input id="listName" placeholder="Word List Name">
+    <button onclick="createList()">Create List</button><br>
+
+    <select id="wordListSelect" onchange="updateWordListPreview()"></select><br>
+    <input id="wordInput" placeholder="Word">
+    <button onclick="startRecording()">🎤 Record</button>
+    <button onclick="stopRecording()">⏹ Stop</button>
+    <button onclick="saveWord()">Save Word</button>
+
+    <ul id="wordPreview"></ul>
+  </div>
+
+  <div id="play" style="display:none;">
+    <h2>Play Mode</h2>
+    <select id="playListSelect"></select><br>
+    <button onclick="startGame()">Start</button><br>
+    <button onclick="playAudio()">🔁 Replay</button><br>
+    <input id="answerInput" placeholder="Type the word" onkeyup="checkAnswer(event)">
+  </div>
+
+  <script>
+    let currentAudioBlob = null;
+    let mediaRecorder, currentWord, currentList = [];
+    let gameInterval = null;
+
+    function switchMode(mode) {
+      document.getElementById('setup').style.display = mode === 'setup' ? 'block' : 'none';
+      document.getElementById('play').style.display = mode === 'play' ? 'block' : 'none';
+      if (mode === 'setup') loadLists(); else populatePlayLists();
+    }
+
+    function createList() {
+      const name = document.getElementById('listName').value.trim();
+      if (!name) return alert("Enter list name");
+      localStorage.setItem(`list_${name}`, JSON.stringify([]));
+      loadLists();
+    }
+
+    function loadLists() {
+      const select = document.getElementById('wordListSelect');
+      select.innerHTML = '';
+      Object.keys(localStorage).filter(k => k.startsWith('list_')).forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k.slice(5);
+        select.appendChild(opt);
+      });
+      updateWordListPreview();
+    }
+
+    function updateWordListPreview() {
+      const key = document.getElementById('wordListSelect').value;
+      const list = JSON.parse(localStorage.getItem(key) || '[]');
+      const ul = document.getElementById('wordPreview');
+      ul.innerHTML = '';
+      list.forEach(w => {
+        const li = document.createElement('li');
+        li.textContent = w.word;
+        ul.appendChild(li);
+      });
+    }
+
+    function startRecording() {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        mediaRecorder = new MediaRecorder(stream);
+        const chunks = [];
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          currentAudioBlob = new Blob(chunks);
+        };
+        mediaRecorder.start();
+      });
+    }
+
+    function stopRecording() {
+      if (mediaRecorder) mediaRecorder.stop();
+    }
+
+    function saveWord() {
+      const word = document.getElementById('wordInput').value.trim();
+      const listKey = document.getElementById('wordListSelect').value;
+      if (!word || !currentAudioBlob) return alert("Missing word or audio");
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const audioData = reader.result;
+        const list = JSON.parse(localStorage.getItem(listKey) || '[]');
+        list.push({ word, audio: audioData });
+        localStorage.setItem(listKey, JSON.stringify(list));
+        updateWordListPreview();
+        currentAudioBlob = null;
+        document.getElementById('wordInput').value = '';
+      };
+      reader.readAsDataURL(currentAudioBlob);
+    }
+
+    function populatePlayLists() {
+      const select = document.getElementById('playListSelect');
+      select.innerHTML = '';
+      Object.keys(localStorage).filter(k => k.startsWith('list_')).forEach(k => {
+        const opt = document.createElement('option');
+        opt.value = k;
+        opt.textContent = k.slice(5);
+        select.appendChild(opt);
+      });
+    }
+
+    function startGame() {
+      const key = document.getElementById('playListSelect').value;
+      currentList = JSON.parse(localStorage.getItem(key) || '[]');
+      nextTurn();
+    }
+
+    function nextTurn() {
+      const rand = Math.floor(Math.random() * currentList.length);
+      currentWord = currentList[rand];
+      document.getElementById('answerInput').value = '';
+      playAudio();
+    }
+
+    function playAudio() {
+      if (!currentWord || !currentWord.audio) return;
+      const audio = new Audio(currentWord.audio);
+      audio.play();
+    }
+
+    function checkAnswer(event) {
+      if (event.key !== 'Enter') return;
+      const input = document.getElementById('answerInput');
+      const answer = input.value.trim().toLowerCase();
+      const expected = currentWord.word.toLowerCase();
+      if (answer === expected) {
+        flash('correct');
+        nextTurn();
+      } else {
+        flash('incorrect');
+      }
+    }
+
+    function flash(cls) {
+      document.body.classList.add(cls);
+      setTimeout(() => document.body.classList.remove(cls), 300);
+    }
+  </script>
+</body>
+</html>
