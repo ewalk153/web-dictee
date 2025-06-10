@@ -4,16 +4,136 @@
   <meta charset="UTF-8">
   <title>Dictation Practice</title>
   <style>
-    body { font-family: sans-serif; text-align: center; padding: 20px; }
-    .correct { background-color: lightgreen; transition: background-color 0.5s; }
-    .incorrect { background-color: lightcoral; transition: background-color 0.5s; }
-    input, select, button { font-size: 18px; margin: 5px; }
-    li { margin: 6px 0; }
+    body {
+      font-family: "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 2rem;
+      background: #f4f4f8;
+      color: #333;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+
+    h1 {
+      font-size: 2.5rem;
+      margin-bottom: 1rem;
+    }
+
+    h2, h3 {
+      margin-top: 2rem;
+      color: #444;
+    }
+
+    .mode-buttons {
+      margin-bottom: 2rem;
+    }
+
+    button {
+      padding: 10px 16px;
+      margin: 5px;
+      border: none;
+      background-color: #007bff;
+      color: white;
+      border-radius: 6px;
+      font-size: 16px;
+      cursor: pointer;
+    }
+
+    button:hover {
+      background-color: #0056b3;
+    }
+
+    input, select {
+      padding: 10px;
+      font-size: 16px;
+      margin: 6px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      width: 250px;
+    }
+
+    #setup, #play {
+      max-width: 600px;
+      width: 100%;
+      background: white;
+      padding: 20px;
+      border-radius: 12px;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.1);
+    }
+
+    #wordPreview {
+      text-align: left;
+      padding-left: 0;
+    }
+
+    #wordPreview li {
+      list-style: none;
+      margin: 6px 0;
+      padding: 6px 10px;
+      background: #f0f0f0;
+      border-radius: 6px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+    }
+
+    #wordPreview button {
+      margin-left: 5px;
+      background-color: #555;
+      padding: 4px 8px;
+      font-size: 14px;
+    }
+
+    #wordPreview button:hover {
+      background-color: #222;
+    }
+
+    #recordIndicator {
+      margin-top: 10px;
+      font-weight: bold;
+      color: red;
+      font-size: 18px;
+    }
+
+    .correct {
+      animation: flashGreen 0.5s;
+    }
+
+    .incorrect {
+      animation: flashRed 0.5s;
+    }
+
+    @keyframes flashGreen {
+      0% { background-color: lightgreen; }
+      100% { background-color: #f4f4f8; }
+    }
+
+    @keyframes flashRed {
+      0% { background-color: #f8d7da; }
+      100% { background-color: #f4f4f8; }
+    }
+
+    #answerInput {
+      font-size: 24px;
+      text-align: center;
+      width: 300px;
+    }
+
+    #scoreDisplay, #totalDisplay {
+      font-weight: bold;
+      font-size: 18px;
+    }
+
+    .score {
+      margin-top: 1rem;
+      font-size: 18px;
+    }
   </style>
 </head>
 <body>
   <h1>Dictation Practice</h1>
-  <div>
+  <div class="mode-buttons">
     <button onclick="switchMode('setup')">Setup Mode</button>
     <button onclick="switchMode('play')">Play Mode</button>
   </div>
@@ -30,13 +150,13 @@
     <button onclick="stopRecording()">⏹ Stop</button>
     <button onclick="saveWord()">Save Word</button>
 
-    <div id="recordIndicator" style="display: none; margin-top: 10px;">
+    <div id="recordIndicator" style="display: none;">
       <span id="recordDot" style="font-size: 24px; color: red;">●</span>
       <span id="recordTime">0.0</span> sec
     </div>
 
     <h3>Words in List: <span id="currentListName"></span></h3>
-    <ul id="wordPreview" style="list-style: none; padding: 0;" ondragover="event.preventDefault()" ondrop="handleDrop(event)"></ul>
+    <ul id="wordPreview" ondragover="event.preventDefault()" ondrop="handleDrop(event)"></ul>
   </div>
 
   <!-- Play Mode -->
@@ -46,19 +166,19 @@
     <button onclick="startGame()">Start</button><br>
     <button onclick="playAudio()">🔁 Replay</button><br>
     <input id="answerInput" placeholder="Type the word" onkeyup="checkAnswer(event)">
+    <p class="score">Score: <span id="scoreDisplay">0</span> / <span id="totalDisplay">0</span></p>
   </div>
 
   <script>
-    let recordTimer = null;
-    let recordStartTime = null;
-    let currentAudioBlob = null;
-    let mediaRecorder, currentWord, currentList = [];
-    let dragIndex = null;
+    let mediaRecorder, currentAudioBlob = null;
+    let currentWord, currentList = [], dragIndex = null;
+    let recordTimer = null, recordStartTime = null;
+    let score = 0, total = 0;
 
     function switchMode(mode) {
       document.getElementById('setup').style.display = mode === 'setup' ? 'block' : 'none';
       document.getElementById('play').style.display = mode === 'play' ? 'block' : 'none';
-      if (mode === 'setup') loadLists(); else populatePlayLists();
+      mode === 'setup' ? loadLists() : populatePlayLists();
     }
 
     function createList() {
@@ -96,10 +216,7 @@
 
         const playBtn = document.createElement('button');
         playBtn.textContent = '🎧';
-        playBtn.onclick = () => {
-          const audio = new Audio(entry.audio);
-          audio.play();
-        };
+        playBtn.onclick = () => new Audio(entry.audio).play();
 
         const delBtn = document.createElement('button');
         delBtn.textContent = '❌';
@@ -125,7 +242,6 @@
       const list = JSON.parse(localStorage.getItem(key) || '[]');
       const dropIndex = [...event.currentTarget.children].indexOf(event.target.closest('li'));
       if (dragIndex === null || dropIndex < 0 || dragIndex === dropIndex) return;
-
       const [movedItem] = list.splice(dragIndex, 1);
       list.splice(dropIndex, 0, movedItem);
       localStorage.setItem(key, JSON.stringify(list));
@@ -137,89 +253,71 @@
       const fromKey = document.getElementById('wordListSelect').value;
       const fromList = JSON.parse(localStorage.getItem(fromKey) || '[]');
       const wordEntry = fromList[index];
-
-      const otherLists = Object.keys(localStorage)
-        .filter(k => k.startsWith('list_') && k !== fromKey);
-
+      const otherLists = Object.keys(localStorage).filter(k => k.startsWith('list_') && k !== fromKey);
       const target = prompt("Move to which list?\n" + otherLists.map(k => k.slice(5)).join('\n'));
       if (!target) return;
-
       const toKey = 'list_' + target.trim();
       if (!localStorage.getItem(toKey)) return alert("That list doesn't exist.");
-
       fromList.splice(index, 1);
       localStorage.setItem(fromKey, JSON.stringify(fromList));
-
       const toList = JSON.parse(localStorage.getItem(toKey));
       toList.push(wordEntry);
       localStorage.setItem(toKey, JSON.stringify(toList));
-
       updateWordListPreview();
     }
 
-function startRecording() {
-  navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
-    const chunks = [];
-    mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm' });
-    mediaRecorder.ondataavailable = e => chunks.push(e.data);
-mediaRecorder.onstop = () => {
-  currentAudioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
-  stopRecordIndicator();
-};
-    mediaRecorder.start();
-    startRecordIndicator();
-    console.log("Recording started");
-  }).catch(err => {
-    alert("Could not access microphone: " + err.message);
-  });
-}
+    function startRecording() {
+      navigator.mediaDevices.getUserMedia({ audio: true }).then(stream => {
+        const chunks = [];
+        mediaRecorder = new MediaRecorder(stream, { mimeType: 'audio/webm;codecs=opus' });
+        mediaRecorder.ondataavailable = e => chunks.push(e.data);
+        mediaRecorder.onstop = () => {
+          currentAudioBlob = new Blob(chunks, { type: 'audio/webm;codecs=opus' });
+          stopRecordIndicator();
+        };
+        mediaRecorder.start();
+        startRecordIndicator();
+      });
+    }
 
-function stopRecording() {
-  if (mediaRecorder && mediaRecorder.state === "recording") {
-    mediaRecorder.stop();
-    console.log("Recording stopped");
-  } else {
-    alert("Not currently recording.");
-  }
-}
+    function stopRecording() {
+      if (mediaRecorder && mediaRecorder.state === "recording") mediaRecorder.stop();
+      else alert("Not currently recording.");
+    }
 
     function startRecordIndicator() {
-  document.getElementById("recordIndicator").style.display = "inline-block";
-  recordStartTime = Date.now();
-  recordTimer = setInterval(() => {
-    const elapsed = ((Date.now() - recordStartTime) / 1000).toFixed(1);
-    document.getElementById("recordTime").textContent = elapsed;
-    const dot = document.getElementById("recordDot");
-    dot.style.visibility = dot.style.visibility === 'hidden' ? 'visible' : 'hidden';
-  }, 500);
-}
-
-function stopRecordIndicator() {
-  clearInterval(recordTimer);
-  recordTimer = null;
-  document.getElementById("recordIndicator").style.display = "none";
-}
-
-function saveWord() {
-  const word = document.getElementById('wordInput').value.trim();
-  const listKey = document.getElementById('wordListSelect').value;
-  if (!word || !currentAudioBlob) return alert("Missing word or audio");
-  const reader = new FileReader();
-  reader.onloadend = () => {
-    const audioData = reader.result;
-    if (!audioData.startsWith("data:audio/webm")) {
-      alert("Audio format unsupported");
-      return;
+      document.getElementById("recordIndicator").style.display = "inline-block";
+      recordStartTime = Date.now();
+      recordTimer = setInterval(() => {
+        const elapsed = ((Date.now() - recordStartTime) / 1000).toFixed(1);
+        document.getElementById("recordTime").textContent = elapsed;
+        const dot = document.getElementById("recordDot");
+        dot.style.visibility = dot.style.visibility === 'hidden' ? 'visible' : 'hidden';
+      }, 500);
     }
-    const list = JSON.parse(localStorage.getItem(listKey) || '[]');
-    list.push({ word, audio: audioData });
-    localStorage.setItem(listKey, JSON.stringify(list));
-    updateWordListPreview();
-    currentAudioBlob = null;
-    document.getElementById('wordInput').value = '';
-  };
-  reader.readAsDataURL(currentAudioBlob);
-}
+
+    function stopRecordIndicator() {
+      clearInterval(recordTimer);
+      document.getElementById("recordIndicator").style.display = "none";
+    }
+
+    function saveWord() {
+      const word = document.getElementById('wordInput').value.trim();
+      const listKey = document.getElementById('wordListSelect').value;
+      if (!word || !currentAudioBlob) return alert("Missing word or audio");
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        const audioData = reader.result;
+        if (!audioData.startsWith("data:audio/webm")) return alert("Invalid format");
+        const list = JSON.parse(localStorage.getItem(listKey) || '[]');
+        list.push({ word, audio: audioData });
+        localStorage.setItem(listKey, JSON.stringify(list));
+        updateWordListPreview();
+        currentAudioBlob = null;
+        document.getElementById('wordInput').value = '';
+      };
+      reader.readAsDataURL(currentAudioBlob);
+    }
 
     function populatePlayLists() {
       const select = document.getElementById('playListSelect');
@@ -235,6 +333,9 @@ function saveWord() {
     function startGame() {
       const key = document.getElementById('playListSelect').value;
       currentList = JSON.parse(localStorage.getItem(key) || '[]');
+      score = 0;
+      total = 0;
+      updateScoreDisplay();
       nextTurn();
     }
 
@@ -248,7 +349,7 @@ function saveWord() {
     function playAudio() {
       if (!currentWord || !currentWord.audio) return;
       const audio = new Audio(currentWord.audio);
-      audio.play();
+      audio.play().catch(err => console.error("Playback error", err));
     }
 
     function checkAnswer(event) {
@@ -256,12 +357,20 @@ function saveWord() {
       const input = document.getElementById('answerInput');
       const answer = input.value.trim().toLowerCase();
       const expected = currentWord.word.toLowerCase();
+      total++;
       if (answer === expected) {
+        score++;
         flash('correct');
         nextTurn();
       } else {
         flash('incorrect');
       }
+      updateScoreDisplay();
+    }
+
+    function updateScoreDisplay() {
+      document.getElementById('scoreDisplay').textContent = score;
+      document.getElementById('totalDisplay').textContent = total;
     }
 
     function flash(cls) {
